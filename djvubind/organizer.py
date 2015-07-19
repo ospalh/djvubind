@@ -90,15 +90,10 @@ class Page:
         """
         Find the resolution of the image.
         """
-        resolution = utils.execute('identify -ping -format %x "{0}"'.format(
-            self.path), capture=True).decode('ascii').split(' ')
-        if resolution[1] == 'PixelsPerInch':
-            self.dpi = int(resolution[0])
-        elif resolution[1] == 'PixelsPerCentimeter':
-            self.dpi = round(float(resolution[0]) * 2.54)
-        else:
-            raise ValueError(
-                'Unknown image resolution unit "{0}"'.format(resolution[0]))
+
+        dpi = utils.execute('identify -ping -format %x "{0}"'.format(self.path), capture=True).decode('ascii').split(' ')[0]
+        self.dpi = int(dpi)
+        return None
 
     def is_bitonal(self):
         """
@@ -108,8 +103,7 @@ class Page:
         if utils.execute('identify -ping "{0}"'.format(self.path), capture=True).decode('utf8').find('1-bit') == -1:
             self.bitonal = False
         else:
-            if int(utils.execute('identify -ping -format %z "{0}"'.format(
-                    self.path), capture=True).decode('utf8')) != 1:
+            if int(utils.execute('identify -ping -format %z "{0}"'.format(self.path), capture=True).decode('utf8')) != 1:
                 print("msg: {0}: Bitonal image but with a depth greater than 1.  Modifying image depth.".format(os.path.split(self.path)[1]))
                 utils.execute('mogrify -colorspace gray -depth 1 "{0}"'.format(self.path))
             self.bitonal = True
