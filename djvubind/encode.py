@@ -141,10 +141,10 @@ class Encoder:
         #utils.execute('convert -opaque black "{0}" "temp_graphics.tif"'.format(infile))
         #utils.execute('convert +opaque black "{0}" "temp_textual.tif"'.format(infile))
         utils.execute('convert "{0}" -opaque black "temp_graphics.tif"'.format(infile))
-        utils.execute('convert "{0}" +opaque black -monochrome "temp_textual.tif"'.format(infile))
+        utils.execute('convert "{0}" +opaque black -monochrome "temp_textual.pbm"'.format(infile))
 
         # Encode the bitonal image.
-        self._cjb2('temp_textual.tif', 'enc_bitonal_out.djvu', dpi)
+        self._cjb2('temp_textual.pbm', 'enc_bitonal_out.djvu', dpi)
 
         # Encode with color with bitonal via csepdjvu
         utils.execute('ddjvu -format=rle -v "enc_bitonal_out.djvu" "temp_textual.rle"')
