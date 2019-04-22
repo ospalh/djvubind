@@ -15,9 +15,13 @@
 #       Foundation, Inc.
 
 import os
-import pickle
 import sys
 import unittest
+
+try:
+    from unittest import mock
+except ImportError:
+    import mock
 
 # Adjust the python path to use live code and not an installed version
 loc = os.path.realpath(__file__)
@@ -32,49 +36,8 @@ import djvubind.utils
 # Move into the directory of the unittests
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
 
-class Ocr(unittest.TestCase):
-    """
-    Tests for djvubind/ocr.py
-    """
 
-
-    def test_01_impossible_bounding_box(self):
-        box = djvubind.ocr.BoundingBox()
-        self.assertRaises(ValueError, box.sanity_check)
-
-    def test_02_translate_check(self):
-        with open('data/Ocr.translate_check_in.pickle', 'rb') as data:
-            data_in = pickle.load(data)
-        with open('data/Ocr.translate_check_out.pickle', 'rb') as data:
-            data_out = pickle.load(data)
-        self.assertEqual(data_out, djvubind.ocr.translate(data_in))
-
-    def test_03_non_supported_engine(self):
-        self.assertRaises(ValueError, djvubind.ocr.engine, 'fake-engine')
-
-#    def test_04_hocr_parser(self):
-#        """
-#        Checks whether the parser gives the same output that was given in the
-#        past.  Checks for each supported version of cuneiform hocr output.
-#        """
-#
-#        for filename in djvubind.utils.list_files('data/', 'cuneiform_in'):
-#            version = filename.split('_')[-1]
-#
-#            handle = open(filename, 'r', encoding='utf8')
-#            infile = handle.read()
-#            handle.close()
-#            handle = open('data/cuneiform_out_'+version, 'r', encoding='utf8')
-#            outfile = handle.read()
-#            handle.close()
-#
-#            parser = djvubind.ocr.hocrParser()
-#            parser.parse(infile)
-#
-#            self.assertEqual(outfile, str(parser.boxing))
-
-
-class Utils(unittest.TestCase):
+class TestUtils(unittest.TestCase):
     """
     Tests for djvubind/utils.py
     """
@@ -120,5 +83,48 @@ class Utils(unittest.TestCase):
         """
         self.assertRaises(TypeError, djvubind.utils.arabic_to_roman, '5')
 
-if __name__ == "__main__":
+    def test_05_counter(self):
+        """
+        Sanity check for utils.counter()
+        """
+
+        counter = djvubind.utils.counter(start=1, roman=True)
+        self.assertEqual(next(counter), "i")
+        self.assertEqual(next(counter), "ii")
+
+        counter = djvubind.utils.counter(start=1)
+        self.assertEqual(next(counter), "1")
+        self.assertEqual(next(counter), "2")
+
+        counter = djvubind.utils.counter(start=1, incriment=2)
+        self.assertEqual(next(counter), "1")
+        self.assertEqual(next(counter), "3")
+
+        counter = djvubind.utils.counter(start=1, end=3)
+        self.assertEqual(next(counter), "1")
+        self.assertEqual(next(counter), "2")
+        self.assertEqual(next(counter), "3")
+        with self.assertRaises(StopIteration):
+            next(counter)
+
+    def test_06_contents(self):
+        """
+        Sanity check for utils.list_files()
+        """
+
+        with mock.patch('os.listdir') as mocked_listdir, \
+             mock.patch('os.path.isfile') as mocked_isfile:
+            mocked_listdir.return_value = ['test.tif', 'test.jpg', 'test.sh', 'test', 'skip', 'skip.jpg']
+            mocked_isfile.return_value = True
+
+            tmp = djvubind.utils.list_files()
+            self.assertEqual(tmp, ['./skip', './skip.jpg', './test', './test.jpg', './test.sh', './test.tif'])
+            tmp = djvubind.utils.list_files(contains="test")
+            self.assertEqual(tmp, ['./test', './test.jpg', './test.sh', './test.tif'])
+            tmp = djvubind.utils.list_files(extension="tif")
+            self.assertEqual(tmp, ['./test.tif'])
+            tmp = djvubind.utils.list_files(contains="test", extension="jpg")
+            self.assertEqual(tmp, ['./test.jpg'])
+
+if __name__ == '__main__':
     unittest.main()

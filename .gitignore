@@ -8,3 +8,6 @@ docs/manual.pdf
 .hgignore
 build.sh
 
+.sonar/
+.coverage
+coverage.xml

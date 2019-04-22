@@ -29,7 +29,6 @@ from html.parser import HTMLParser
 
 from . import utils
 
-
 class BoundingBox(object):
     """
     A rectangular portion of an image that contains something of value, such as
@@ -233,7 +232,7 @@ class hocrParser(HTMLParser):
                 # Get the whole element, not just the tag.
                 element = {}
                 element['complete'] = re.search('{0}(.*?)</span>'.format(self.get_starttag_text()), self.data).group(0)
-                element['text'] = re.search('\'>(.*?)</span', element['complete']).group(1)
+                element['text'] = re.search('[\'"]>(.*?)</span', element['complete']).group(1)
                 element['text'] = re.sub('<[\w\/\.]*>', '', element['text'])
                 element['text'] = utils.replace_html_codes(element['text'])
                 element['positions'] = re.search('bbox ([0-9\s]*)', element['complete']).group(1)
@@ -340,6 +339,8 @@ class Tesseract(object):
         self.version = int(version)
         self.options = options
 
+        self.preserve_ocr = False
+
     def _correct_boxfile(self, boxdata, text):
         """
         Reconciles Tesseract's boxfile data with it's plain text data.
@@ -438,15 +439,36 @@ class Tesseract(object):
 
         if self.version >= 3:
             basename = os.path.split(filename)[1].split('.')[0]
+            # It's important that the basename have a random string appended to
+            # it, otherwise a directory with both 01.tif and 01.ppm is going
+            # to have some (un)predictable problems.
+            basename += "_" + utils.id_generator()
             tesseractpath = utils.get_executable_path('tesseract')
+            
+            ocr_file = os.path.splitext(filename)[0] + '.hocr'
 
-            utils.execute('{0} "{1}" "{2}" {3} hocr'.format(tesseractpath, filename, basename, self.options))
+            if (os.path.exists(ocr_file)):
+                print('wrn: ocr.Tesseract.analyze(): Pre-existing hocr file for {0}. Using existing data.'.format(filename), file=sys.stderr)
+                with open(ocr_file, 'r') as handle:
+                    text = handle.read()
+            else:
+                cmd = '{0} "{1}" "{2}" {3} hocr'.format(tesseractpath, filename, basename, self.options)
+                utils.execute(cmd)
 
-            with open('{0}.hocr'.format(basename), 'r') as handle:
-                text = handle.read()
+                if os.path.exists('{0}.hocr'.format(basename)):
+                    hocrfile = '{0}.hocr'.format(basename)
+                elif os.path.exists('{0}.html'.format(basename)):
+                    hocrfile = '{0}.html'.format(basename)
+                else:
+                    raise FileNotFoundError
 
-            # Clean up excess files.
-            #os.remove(basename+'.hocr')
+                with open(hocrfile, 'r') as handle:
+                    text = handle.read()
+
+                if self.preserve_ocr:
+                    shutil.copy2(hocrfile, ocr_file)
+                else:
+                    os.remove(hocrfile)
 
             parser = hocrParser()
             parser.parse(text)
@@ -463,6 +485,10 @@ class Tesseract(object):
             return parser.boxing
         else:
             basename = os.path.split(filename)[1].split('.')[0]
+            # It's important that the basename have a random string appended to
+            # it, otherwise a directory with both 01.tif and 01.ppm is going
+            # to have some (un)predictable problems.
+            basename += "_" + utils.id_generator()
             tesseractpath = utils.get_executable_path('tesseract')
 
             utils.execute('{0} "{1}" "{2}_box" {3} batch makebox'.format(tesseractpath, filename, basename, self.options))
