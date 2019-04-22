@@ -98,7 +98,7 @@ class Page:
             self.dpi = round(float(resolution[0]) * 2.54)
         else:
             raise ValueError(
-                'Unknown image resolution unit "{0}"'.format(resolution[0]))
+                'Unknown image resolution unit "{0}"'.format(resolution[1]))
 
     def is_bitonal(self):
         """
