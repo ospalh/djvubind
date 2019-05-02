@@ -40,7 +40,8 @@ class BoundingBox(object):
     """
 
     def __init__(self):
-        self.perimeter = {'xmax':0, 'xmin':1000000000, 'ymax':0, 'ymin':1000000000}
+        self.perimeter = {
+            'xmax':0, 'xmin':1000000000, 'ymax':0, 'ymin':1000000000}
         self.children = []
 
     def add_element(self, box):
@@ -64,15 +65,19 @@ class BoundingBox(object):
         return None
 
     def sanity_check(self):
-        """
-        Verifies that the x/y min values are not greater than the x/y max values.
+        """Verifies that the x/y min values are not greater than the x/y max
+        values.
 
             Raises:
-                * ValueError: A min is greater than a max.  Either there was bad input nothing was added to the bounding box.
+                * ValueError: A min is greater than a max.  Either
+                  there was bad input nothing was added to the
+                  bounding box.
         """
 
-        if (self.perimeter['xmin'] > self.perimeter['xmax']) or (self.perimeter['ymin'] > self.perimeter['ymax']):
-            raise ValueError('Boxing information is impossible (x/y min exceed x/y max).')
+        if self.perimeter['xmin'] > self.perimeter['xmax'] or self.perimeter[
+                'ymin'] > self.perimeter['ymax']:
+            raise ValueError(
+                'Boxing information is impossible (x/y min exceed x/y max).')
         return None
 
 
@@ -106,7 +111,10 @@ class djvuWordBox(BoundingBox):
 
     def encode(self):
         self.sanity_check()
-        return '(word {0} {1} {2} {3} "{4}")'.format(self.perimeter['xmin'], self.perimeter['ymin'], self.perimeter['xmax'], self.perimeter['ymax'], ''.join(self.children))
+        return '(word {0} {1} {2} {3} "{4}")'.format(
+            self.perimeter['xmin'], self.perimeter['ymin'],
+            self.perimeter['xmax'], self.perimeter['ymax'],
+            ''.join(self.children))
 
 class djvuLineBox(BoundingBox):
     """
@@ -117,12 +125,16 @@ class djvuLineBox(BoundingBox):
         BoundingBox.__init__(self)
 
     def encode(self):
-        # This is a hackish solution for when a line happens to be blank (only cuneiform hocr?).
-        # Something here with BoundingBox needs to be thought through better.
-        if (self.perimeter['xmin'] == 1000000000) and (self.perimeter['ymin'] == 1000000000):
+        # This is a hackish solution for when a line happens to be
+        # blank (only cuneiform hocr?).  Something here with
+        # BoundingBox needs to be thought through better.
+        if self.perimeter['xmin'] == 1000000000 and self.perimeter[
+                'ymin'] == 1000000000:
             return ''
         self.sanity_check()
-        line = '(line {0} {1} {2} {3}'.format(self.perimeter['xmin'], self.perimeter['ymin'], self.perimeter['xmax'], self.perimeter['ymax'])
+        line = '(line {0} {1} {2} {3}'.format(
+            self.perimeter['xmin'], self.perimeter['ymin'],
+            self.perimeter['xmax'], self.perimeter['ymax'])
         words = '\n    '.join([x.encode() for x in self.children])
         return line+'\n    '+words+')'
 
@@ -137,7 +149,9 @@ class djvuPageBox(BoundingBox):
 
     def encode(self):
         self.sanity_check()
-        page = '(page {0} {1} {2} {3}'.format(self.perimeter['xmin'], self.perimeter['ymin'], self.perimeter['xmax'], self.perimeter['ymax'])
+        page = '(page {0} {1} {2} {3}'.format(
+            self.perimeter['xmin'], self.perimeter['ymin'],
+            self.perimeter['xmax'], self.perimeter['ymax'])
         lines = '\n  '.join([x.encode() for x in self.children])
         return page+'\n  '+lines+')'
 
@@ -165,7 +179,8 @@ class hocrParser(HTMLParser):
                 if (len(self.boxing) > 0):
                     self.boxing.append('newline')
             elif (tag == 'span'):
-                # Get the whole element (<span title="bbox n n n n">x</span>), not just the tag.
+                # Get the whole element (<span title="bbox n n n
+                # n">x</span>), not just the tag.
                 element = {}
                 element['start'] = self.data.find(self.get_starttag_text())
                 element['end'] = self.data.find('>', element['start'])
@@ -178,7 +193,9 @@ class hocrParser(HTMLParser):
                 # Figure out the boxing information from the title attribute.
                 attrs = dict(attrs)['title']
                 attrs = attrs.split()[1:]
-                positions = {'xmin':int(attrs[0]), 'ymin':int(attrs[1]), 'xmax':int(attrs[2]), 'ymax':int(attrs[3])}
+                positions = {
+                    'xmin':int(attrs[0]), 'ymin':int(attrs[1]),
+                    'xmax':int(attrs[2]), 'ymax':int(attrs[3])}
                 positions['char'] = element['char']
 
                 # Escape special characters
@@ -197,21 +214,28 @@ class hocrParser(HTMLParser):
             elif (tag == 'span') and (('class', 'ocr_line') in attrs):
                 # Get the whole element, not just the tag.
                 element = {}
-                element['complete'] = re.search('{0}(.*?)</span>'.format(self.get_starttag_text()), self.data).group(0)
+                element['complete'] = re.search(
+                    '{0}(.*?)</span>'.format(self.get_starttag_text()),
+                    self.data).group(0)
                 if "<span class='ocr_cinfo'" not in element['complete']:
                     return None
-                element['text'] = re.search('">(.*)<span', element['complete']).group(1)
+                element['text'] = re.search(
+                    '">(.*)<span', element['complete']).group(1)
                 element['text'] = re.sub('<[\w\/\.]*>', '', element['text'])
                 element['text'] = utils.replace_html_codes(element['text'])
-                element['positions'] = re.search('title="x_bboxes (.*) ">', element['complete']).group(1)
-                element['positions'] = [int(item) for item in element['positions'].split()]
+                element['positions'] = re.search(
+                    'title="x_bboxes (.*) ">', element['complete']).group(1)
+                element['positions'] = [
+                    int(item) for item in element['positions'].split()]
 
                 i = 0
                 for char in element['text']:
                     if element['positions'][i:i+4] == []:
                         continue
                     section = element['positions'][i:i+4]
-                    positions = {'char':char, 'xmin':section[0], 'ymin':section[1], 'xmax':section[2], 'ymax':section[3]}
+                    positions = {
+                        'char':char, 'xmin':section[0], 'ymin':section[1],
+                        'xmax':section[2], 'ymax':section[3]}
                     i = i+4
 
                     # A word break is indicated by a space (go figure).
@@ -231,19 +255,26 @@ class hocrParser(HTMLParser):
             elif (tag == 'span') and (('class', 'ocrx_word') in attrs):
                 # Get the whole element, not just the tag.
                 element = {}
-                element['complete'] = re.search('{0}(.*?)</span>'.format(self.get_starttag_text()), self.data).group(0)
-                element['text'] = re.search('[\'"]>(.*?)</span', element['complete']).group(1)
+                element['complete'] = re.search(
+                    '{0}(.*?)</span>'.format(self.get_starttag_text()),
+                    self.data).group(0)
+                element['text'] = re.search(
+                    '[\'"]>(.*?)</span', element['complete']).group(1)
                 element['text'] = re.sub('<[\w\/\.]*>', '', element['text'])
                 element['text'] = utils.replace_html_codes(element['text'])
-                element['positions'] = re.search('bbox ([0-9\s]*)', element['complete']).group(1)
-                element['positions'] = [int(item) for item in element['positions'].split()]
+                element['positions'] = re.search(
+                    'bbox ([0-9\s]*)', element['complete']).group(1)
+                element['positions'] = [
+                    int(item) for item in element['positions'].split()]
 
                 i = 0
                 for char in element['text']:
                     if element['positions'][i:i+4] == []:
                         continue
                     section = element['positions'][i:i+4]
-                    positions = {'char':char, 'xmin':section[0], 'ymin':section[1], 'xmax':section[2], 'ymax':section[3]}
+                    positions = {
+                        'char':char, 'xmin':section[0], 'ymin':section[1],
+                        'xmax':section[2], 'ymax':section[3]}
                     #i = i+4
 
                     # A word break is indicated by a space (go figure).
@@ -269,7 +300,8 @@ class Cuneiform(object):
 
     def __init__(self, options):
         if not utils.is_executable('cuneiform'):
-            raise OSError('Cuneiform is either not installed or not in the configured path.')
+            raise OSError(
+                'Cuneiform is either not installed or not in the configured path.')
 
         self.options = options
 
@@ -328,15 +360,10 @@ class Tesseract(object):
     def __init__(self, options):
         if not utils.is_executable('tesseract'):
             raise OSError('Tesseract is either not installed or not in the configured path.')
-
-        sub = subprocess.Popen('tesseract --version', shell=True, stderr=subprocess.PIPE)
-        sub.wait()
-        version = str(sub.stderr.read())
-        version = version.split('\\n')[0]
-        version = version.split()[-1]
-        version = version.split('.')[0]
-
-        self.version = int(version)
+        # self.version = 3
+        # Dropped version check. Dropped tesseract < 3 code.
+        # Tesseract 3 came out in 2010, Tesseract 4 in 2018. We’ll
+        # have to see if this still works with tesseract 4.
         self.options = options
 
         self.preserve_ocr = False
@@ -437,127 +464,51 @@ class Tesseract(object):
         Performs OCR analysis on the image and returns a djvuPageBox object.
         """
 
-        if self.version >= 3:
-            basename = os.path.split(filename)[1].split('.')[0]
-            # It's important that the basename have a random string appended to
-            # it, otherwise a directory with both 01.tif and 01.ppm is going
-            # to have some (un)predictable problems.
-            basename += "_" + utils.id_generator()
-            tesseractpath = utils.get_executable_path('tesseract')
-            
-            ocr_file = os.path.splitext(filename)[0] + '.hocr'
+        basename = os.path.split(filename)[1].split('.')[0]
+        # It's important that the basename have a random string appended to
+        # it, otherwise a directory with both 01.tif and 01.ppm is going
+        # to have some (un)predictable problems.
+        basename += "_" + utils.id_generator()
+        tesseractpath = utils.get_executable_path('tesseract')
 
-            if (os.path.exists(ocr_file)):
-                print('wrn: ocr.Tesseract.analyze(): Pre-existing hocr file for {0}. Using existing data.'.format(filename), file=sys.stderr)
-                with open(ocr_file, 'r') as handle:
-                    text = handle.read()
-            else:
-                cmd = '{0} "{1}" "{2}" {3} hocr'.format(tesseractpath, filename, basename, self.options)
-                utils.execute(cmd)
+        ocr_file = os.path.splitext(filename)[0] + '.hocr'
 
-                if os.path.exists('{0}.hocr'.format(basename)):
-                    hocrfile = '{0}.hocr'.format(basename)
-                elif os.path.exists('{0}.html'.format(basename)):
-                    hocrfile = '{0}.html'.format(basename)
-                else:
-                    raise FileNotFoundError
-
-                with open(hocrfile, 'r') as handle:
-                    text = handle.read()
-
-                if self.preserve_ocr:
-                    shutil.copy2(hocrfile, ocr_file)
-                else:
-                    os.remove(hocrfile)
-
-            parser = hocrParser()
-            parser.parse(text)
-
-            # hocr inverts the y-axis compared to what djvu expects.  The total height of the
-            # image is needed to invert the values.
-            height = int(utils.execute('identify -format %H "{0}"'.format(filename), capture=True))
-            for entry in parser.boxing:
-                if entry not in ['space', 'newline']:
-                    ymin, ymax = entry['ymin'], entry['ymax']
-                    entry['ymin'] = height - ymax
-                    entry['ymax'] = height - ymin
-
-            return parser.boxing
-        else:
-            basename = os.path.split(filename)[1].split('.')[0]
-            # It's important that the basename have a random string appended to
-            # it, otherwise a directory with both 01.tif and 01.ppm is going
-            # to have some (un)predictable problems.
-            basename += "_" + utils.id_generator()
-            tesseractpath = utils.get_executable_path('tesseract')
-
-            utils.execute('{0} "{1}" "{2}_box" {3} batch makebox'.format(tesseractpath, filename, basename, self.options))
-
-            # tesseract-3.00 changed the .txt extension to .box so check which file was created.
-            if os.path.exists(basename + '_box.txt'):
-                boxfilename = basename + '_box.txt'
-            else:
-                boxfilename = basename + '_box.box'
-
-            with open(boxfilename, 'r', encoding='utf8') as handle:
-                    boxfile = handle.read()
-            os.remove(boxfilename)
-
-            utils.execute('{0} "{1}" "{2}_txt" {3} batch'.format(tesseractpath, filename, basename, self.options))
-            with open(basename+'_txt.txt', 'r', encoding='utf8') as handle:
+        if (os.path.exists(ocr_file)):
+            print('wrn: ocr.Tesseract.analyze(): Pre-existing hocr file for {0}. Using existing data.'.format(filename), file=sys.stderr)
+            with open(ocr_file, 'r') as handle:
                 text = handle.read()
-            os.remove(basename+'_txt.txt')
+        else:
+            cmd = '{0} "{1}" "{2}" {3} hocr'.format(tesseractpath, filename, basename, self.options)
+            utils.execute(cmd)
 
-            data = []
-            for line in boxfile.split('\n'):
-                if (line == ''):
-                    continue
-                line = line.split()
-                if len(line) != 5 and len(line) != 6: # Tesseract 3 box file has 6 columns
-                    print('err: ocr.boxfileParser.parse_box(): The format of the boxfile is not what was expected.', file=sys.stderr)
-                    sys.exit(1)
-                data.append({'char':line[0], 'xmin':int(line[1]), 'ymin':int(line[2]), 'xmax':int(line[3]), 'ymax':int(line[4])})
-            boxfile = data
+            if os.path.exists('{0}.hocr'.format(basename)):
+                hocrfile = '{0}.hocr'.format(basename)
+            elif os.path.exists('{0}.html'.format(basename)):
+                hocrfile = '{0}.html'.format(basename)
+            else:
+                raise FileNotFoundError
 
-            boxfile = self._correct_boxfile(boxfile, text)
-            textfile = [text[x:x+1] for x in range(len(text))]
-            warning_count = 0
+            with open(hocrfile, 'r') as handle:
+                text = handle.read()
 
-            boxing = []
-            for x in range(len(textfile)):
-                char = textfile[x]
-                if (len(boxfile) == 0):
-                    break
+            if self.preserve_ocr:
+                shutil.copy2(hocrfile, ocr_file)
+            else:
+                os.remove(hocrfile)
 
-                if (char == '\n'):
-                    if (len(boxing) > 0) and (boxing[-1] != 'newline'):
-                        boxing.append('newline')
-                    continue
-                elif (char == ' '):
-                    if (len(boxing) > 0) and (boxing[-1] != 'space'):
-                        boxing.append('space')
-                    continue
-                else:
-                    if (char != boxfile[0]['char']):
-                        if (len(boxfile) >= 2) and (x+3 <= len(textfile)):
-                            # Maybe this character isn't certain (e/o/c) and we should skip to the next character in both files.
-                            if (textfile[x+1] == boxfile[1]['char']):
-                                boxfile.pop(0)
-                            # Maybe the boxfile inserted an extra character.
-                            elif (textfile[x] == boxfile[1]['char']):
-                                pass
-                            elif (warning_count == 0):
-                                warning_count = warning_count +1
-                                msg = 'wrn: tesseract produced a significant mismatch between textual data and character position data on "{0}".  This may result in partial ocr content for this page.'.format(os.path.split(filename)[1])
-                                msg = utils.color(msg, 'red')
-                                print(msg, file=sys.stderr)
-                        continue
-                    if (char in ['"', '\\']):
-                        boxfile.pop(0)
-                        continue
-                    boxing.append(boxfile.pop(0))
+        parser = hocrParser()
+        parser.parse(text)
 
-            return boxing
+        # hocr inverts the y-axis compared to what djvu expects.  The total height of the
+        # image is needed to invert the values.
+        height = int(utils.execute('identify -format %H "{0}"'.format(filename), capture=True))
+        for entry in parser.boxing:
+            if entry not in ['space', 'newline']:
+                ymin, ymax = entry['ymin'], entry['ymax']
+                entry['ymin'] = height - ymax
+                entry['ymax'] = height - ymin
+
+        return parser.boxing
 
 
 def engine(ocr_engine, options=''):
