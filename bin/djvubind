@@ -441,9 +441,15 @@ for manual corrections to ocr.""")
             print('err: __main__: external dependency ({0}) cannot be found.'.format(dep), file=sys.stderr)
             sys.exit(1)
 
-    if os.path.isfile(proj.out) and options.no_clobber:
-        print('err: Output file {} exists.'.format(proj.out), file=sys.stderr)
-        sys.exit(1)
+    if os.path.isfile(proj.out):
+        if options.no_clobber:
+            print(
+                'err: Output file {} exists.'.format(proj.out),
+                file=sys.stderr)
+            sys.exit(1)
+        else:
+            # We have to clober the file ourselves.
+            os.remove(proj.out)
 
     # Change to working directory if necessary
     if len(args) == 2:
