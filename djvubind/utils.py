@@ -151,11 +151,11 @@ def split_cmd(start, files, end=''):
     [2] http://www.linuxjournal.com/article/6060
     """
     #print(cmd)
-
+    # Ah, this function is rather silly. Keep it anyway. RAS 2019-05-04
+    print("splitting “{}”, “{}”, “{}”".format(start, files, end))
     cmds = []
     start = start + ' '
     end = ' ' + end
-
     buffer = start
     while len(files) > 0:
         if len(buffer) + len(files[0]) + len(end) + 3 < 32000:
@@ -166,7 +166,6 @@ def split_cmd(start, files, end=''):
             buffer = start
     buffer = buffer + end.rstrip()
     cmds.append(buffer)
-
     return cmds
 
 def simple_exec(cmd):
@@ -174,40 +173,26 @@ def simple_exec(cmd):
     Execute a simple command.  Any output disregarded and exit status is
     returned.
     """
-    #print(cmd)
+    # print("executing “{}”".format(cmd))
+    return subprocess.call(shlex.split(cmd))
 
-    cmd = shlex.split(cmd)
-    with open(os.devnull, 'w') as void:
-        sub = subprocess.Popen(cmd, shell=False, stdout=void, stderr=void)
-        status = int(sub.wait())
 
-    return status
-
-def execute(cmd, capture=False):
+def execute(cmd):
     """
     Execute a command line process.  Includes the option of capturing output,
     and checks for successful execution.
     """
-    #print(cmd)
+    # print("executing “{}”".format(cmd))
+    return subprocess.check_output(shlex.split(cmd))
+    # N.B.: The call may throw a CalledProcessError. Old code was to
+    # explicitly check the return code and then do sys.exit. Following
+    # the principle of never cathing an exception we can”t handle we
+    # just let the program blow up on its own. Maybe we should catch,
+    # print cmd and raise == crash.
 
-    with open(os.devnull, 'w') as void:
-        if capture:
-            sub = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=void)
-        else:
-            sub = subprocess.Popen(cmd, shell=True, stdout=void, stderr=void)
-    status = sub.wait()
-
-    # Exit if the command fails for any reason.
-    if status != 0:
-        print(color("err: [utils.execute()] Command exited with bad status.", 'red'), file=sys.stderr)
-        print('     cmd = {0}\n     exit status = {1}'.format(cmd, status), file=sys.stderr)
-        sys.exit(1)
-
-    if capture:
-        text = sub.stdout.read()
-        return text
-    else:
-        return None
+    # Also, when we called this with catpure=False we explicitly
+    # (why?) returned None. If you’re not interested in the output,
+    # just don’t look at it.
 
 def list_files(directory='.', contains=None, extension=None):
     """Find all files in a given directory that match criteria."""

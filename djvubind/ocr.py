@@ -25,6 +25,7 @@ import shutil
 import subprocess
 import sys
 
+from distutils.version import StrictVersion
 from html.parser import HTMLParser
 
 from . import utils
@@ -40,7 +41,8 @@ class BoundingBox(object):
     """
 
     def __init__(self):
-        self.perimeter = {'xmax':0, 'xmin':1000000000, 'ymax':0, 'ymin':1000000000}
+        self.perimeter = {
+            'xmax':0, 'xmin':1000000000, 'ymax':0, 'ymin':1000000000}
         self.children = []
 
     def add_element(self, box):
@@ -64,15 +66,19 @@ class BoundingBox(object):
         return None
 
     def sanity_check(self):
-        """
-        Verifies that the x/y min values are not greater than the x/y max values.
+        """Verifies that the x/y min values are not greater than the x/y max
+        values.
 
             Raises:
-                * ValueError: A min is greater than a max.  Either there was bad input nothing was added to the bounding box.
+                * ValueError: A min is greater than a max.  Either
+                  there was bad input nothing was added to the
+                  bounding box.
         """
 
-        if (self.perimeter['xmin'] > self.perimeter['xmax']) or (self.perimeter['ymin'] > self.perimeter['ymax']):
-            raise ValueError('Boxing information is impossible (x/y min exceed x/y max).')
+        if self.perimeter['xmin'] > self.perimeter['xmax'] or self.perimeter[
+                'ymin'] > self.perimeter['ymax']:
+            raise ValueError(
+                'Boxing information is impossible (x/y min exceed x/y max).')
         return None
 
 
@@ -106,7 +112,10 @@ class djvuWordBox(BoundingBox):
 
     def encode(self):
         self.sanity_check()
-        return '(word {0} {1} {2} {3} "{4}")'.format(self.perimeter['xmin'], self.perimeter['ymin'], self.perimeter['xmax'], self.perimeter['ymax'], ''.join(self.children))
+        return '(word {0} {1} {2} {3} "{4}")'.format(
+            self.perimeter['xmin'], self.perimeter['ymin'],
+            self.perimeter['xmax'], self.perimeter['ymax'],
+            ''.join(self.children))
 
 class djvuLineBox(BoundingBox):
     """
@@ -117,12 +126,16 @@ class djvuLineBox(BoundingBox):
         BoundingBox.__init__(self)
 
     def encode(self):
-        # This is a hackish solution for when a line happens to be blank (only cuneiform hocr?).
-        # Something here with BoundingBox needs to be thought through better.
-        if (self.perimeter['xmin'] == 1000000000) and (self.perimeter['ymin'] == 1000000000):
+        # This is a hackish solution for when a line happens to be
+        # blank (only cuneiform hocr?).  Something here with
+        # BoundingBox needs to be thought through better.
+        if self.perimeter['xmin'] == 1000000000 and self.perimeter[
+                'ymin'] == 1000000000:
             return ''
         self.sanity_check()
-        line = '(line {0} {1} {2} {3}'.format(self.perimeter['xmin'], self.perimeter['ymin'], self.perimeter['xmax'], self.perimeter['ymax'])
+        line = '(line {0} {1} {2} {3}'.format(
+            self.perimeter['xmin'], self.perimeter['ymin'],
+            self.perimeter['xmax'], self.perimeter['ymax'])
         words = '\n    '.join([x.encode() for x in self.children])
         return line+'\n    '+words+')'
 
@@ -137,7 +150,9 @@ class djvuPageBox(BoundingBox):
 
     def encode(self):
         self.sanity_check()
-        page = '(page {0} {1} {2} {3}'.format(self.perimeter['xmin'], self.perimeter['ymin'], self.perimeter['xmax'], self.perimeter['ymax'])
+        page = '(page {0} {1} {2} {3}'.format(
+            self.perimeter['xmin'], self.perimeter['ymin'],
+            self.perimeter['xmax'], self.perimeter['ymax'])
         lines = '\n  '.join([x.encode() for x in self.children])
         return page+'\n  '+lines+')'
 
@@ -165,7 +180,8 @@ class hocrParser(HTMLParser):
                 if (len(self.boxing) > 0):
                     self.boxing.append('newline')
             elif (tag == 'span'):
-                # Get the whole element (<span title="bbox n n n n">x</span>), not just the tag.
+                # Get the whole element (<span title="bbox n n n
+                # n">x</span>), not just the tag.
                 element = {}
                 element['start'] = self.data.find(self.get_starttag_text())
                 element['end'] = self.data.find('>', element['start'])
@@ -178,7 +194,9 @@ class hocrParser(HTMLParser):
                 # Figure out the boxing information from the title attribute.
                 attrs = dict(attrs)['title']
                 attrs = attrs.split()[1:]
-                positions = {'xmin':int(attrs[0]), 'ymin':int(attrs[1]), 'xmax':int(attrs[2]), 'ymax':int(attrs[3])}
+                positions = {
+                    'xmin':int(attrs[0]), 'ymin':int(attrs[1]),
+                    'xmax':int(attrs[2]), 'ymax':int(attrs[3])}
                 positions['char'] = element['char']
 
                 # Escape special characters
@@ -197,21 +215,28 @@ class hocrParser(HTMLParser):
             elif (tag == 'span') and (('class', 'ocr_line') in attrs):
                 # Get the whole element, not just the tag.
                 element = {}
-                element['complete'] = re.search('{0}(.*?)</span>'.format(self.get_starttag_text()), self.data).group(0)
+                element['complete'] = re.search(
+                    '{0}(.*?)</span>'.format(self.get_starttag_text()),
+                    self.data).group(0)
                 if "<span class='ocr_cinfo'" not in element['complete']:
                     return None
-                element['text'] = re.search('">(.*)<span', element['complete']).group(1)
+                element['text'] = re.search(
+                    '">(.*)<span', element['complete']).group(1)
                 element['text'] = re.sub('<[\w\/\.]*>', '', element['text'])
                 element['text'] = utils.replace_html_codes(element['text'])
-                element['positions'] = re.search('title="x_bboxes (.*) ">', element['complete']).group(1)
-                element['positions'] = [int(item) for item in element['positions'].split()]
+                element['positions'] = re.search(
+                    'title="x_bboxes (.*) ">', element['complete']).group(1)
+                element['positions'] = [
+                    int(item) for item in element['positions'].split()]
 
                 i = 0
                 for char in element['text']:
                     if element['positions'][i:i+4] == []:
                         continue
                     section = element['positions'][i:i+4]
-                    positions = {'char':char, 'xmin':section[0], 'ymin':section[1], 'xmax':section[2], 'ymax':section[3]}
+                    positions = {
+                        'char':char, 'xmin':section[0], 'ymin':section[1],
+                        'xmax':section[2], 'ymax':section[3]}
                     i = i+4
 
                     # A word break is indicated by a space (go figure).
@@ -231,19 +256,26 @@ class hocrParser(HTMLParser):
             elif (tag == 'span') and (('class', 'ocrx_word') in attrs):
                 # Get the whole element, not just the tag.
                 element = {}
-                element['complete'] = re.search('{0}(.*?)</span>'.format(self.get_starttag_text()), self.data).group(0)
-                element['text'] = re.search('[\'"]>(.*?)</span', element['complete']).group(1)
+                element['complete'] = re.search(
+                    '{0}(.*?)</span>'.format(self.get_starttag_text()),
+                    self.data).group(0)
+                element['text'] = re.search(
+                    '[\'"]>(.*?)</span', element['complete']).group(1)
                 element['text'] = re.sub('<[\w\/\.]*>', '', element['text'])
                 element['text'] = utils.replace_html_codes(element['text'])
-                element['positions'] = re.search('bbox ([0-9\s]*)', element['complete']).group(1)
-                element['positions'] = [int(item) for item in element['positions'].split()]
+                element['positions'] = re.search(
+                    'bbox ([0-9\s]*)', element['complete']).group(1)
+                element['positions'] = [
+                    int(item) for item in element['positions'].split()]
 
                 i = 0
                 for char in element['text']:
                     if element['positions'][i:i+4] == []:
                         continue
                     section = element['positions'][i:i+4]
-                    positions = {'char':char, 'xmin':section[0], 'ymin':section[1], 'xmax':section[2], 'ymax':section[3]}
+                    positions = {
+                        'char':char, 'xmin':section[0], 'ymin':section[1],
+                        'xmax':section[2], 'ymax':section[3]}
                     #i = i+4
 
                     # A word break is indicated by a space (go figure).
@@ -269,7 +301,8 @@ class Cuneiform(object):
 
     def __init__(self, options):
         if not utils.is_executable('cuneiform'):
-            raise OSError('Cuneiform is either not installed or not in the configured path.')
+            raise OSError(
+                'Cuneiform is either not installed or not in the configured path.')
 
         self.options = options
 
@@ -310,7 +343,7 @@ class Cuneiform(object):
 
         # Cuneiform hocr inverts the y-axis compared to what djvu expects.  The total height of the
         # image is needed to invert the values.
-        height = int(utils.execute('identify -format %H "{0}"'.format(filename), capture=True))
+        height = int(utils.execute('identify -format %H "{0}"'.format(filename)))
         for entry in parser.boxing:
             if entry not in ['space', 'newline']:
                 ymin, ymax = entry['ymin'], entry['ymax']
@@ -329,14 +362,10 @@ class Tesseract(object):
         if not utils.is_executable('tesseract'):
             raise OSError('Tesseract is either not installed or not in the configured path.')
 
-        sub = subprocess.Popen('tesseract --version', shell=True, stderr=subprocess.PIPE)
-        sub.wait()
-        version = str(sub.stderr.read())
-        version = version.split('\\n')[0]
-        version = version.split()[-1]
-        version = version.split('.')[0]
-
-        self.version = int(version)
+        t_version_bytes = subprocess.check_output(['tesseract', '--version'])
+        t_version = str(t_version_bytes)
+        t_version = t_version.split('\\n')[0]
+        self.version = StrictVersion(t_version.split()[-1])
         self.options = options
 
         self.preserve_ocr = False
@@ -437,14 +466,14 @@ class Tesseract(object):
         Performs OCR analysis on the image and returns a djvuPageBox object.
         """
 
-        if self.version >= 3:
+        if self.version >= StrictVersion("3.0.0"):
             basename = os.path.split(filename)[1].split('.')[0]
             # It's important that the basename have a random string appended to
             # it, otherwise a directory with both 01.tif and 01.ppm is going
             # to have some (un)predictable problems.
             basename += "_" + utils.id_generator()
             tesseractpath = utils.get_executable_path('tesseract')
-            
+
             ocr_file = os.path.splitext(filename)[0] + '.hocr'
 
             if (os.path.exists(ocr_file)):
@@ -475,7 +504,7 @@ class Tesseract(object):
 
             # hocr inverts the y-axis compared to what djvu expects.  The total height of the
             # image is needed to invert the values.
-            height = int(utils.execute('identify -format %H "{0}"'.format(filename), capture=True))
+            height = int(utils.execute('identify -format %H "{0}"'.format(filename)))
             for entry in parser.boxing:
                 if entry not in ['space', 'newline']:
                     ymin, ymax = entry['ymin'], entry['ymax']

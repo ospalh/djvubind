@@ -55,7 +55,7 @@ class ThreadAnalyze(threading.Thread):
                 page.get_dpi()
             except queue.Empty:
                 self.quit = True
-            except:
+            except SyntaxError as dummy_exception:
                 msg = 'wrn: Analysis failure on {0}.'.format(os.path.split(page.path)[1])
                 msg = djvubind.utils.color(msg, 'red')
                 print(msg, file=sys.stderr)
@@ -80,7 +80,7 @@ class ThreadOCR(threading.Thread):
                 page.text = djvubind.ocr.translate(boxing)
             except queue.Empty:
                 self.quit = True
-            except:
+            except SyntaxError as dummy_exception:
                 msg = 'wrn: OCR failure on {0} - This page will have no OCR content.'.format(os.path.split(page.path)[1])
                 msg = djvubind.utils.color(msg, 'red')
                 print(msg, file=sys.stderr)
@@ -188,24 +188,24 @@ class Project:
         """
 
         # Set default options
-        self.opts = {'cores':-1,
-                     'ocr':True,
-                     'ocr_engine':'tesseract',
-                     'cuneiform_options':'',
-                     'tesseract_options':'',
-                     'bitonal_encoder':'cjb2',
-                     'color_encoder':'csepdjvu',
-                     'c44_options':'',
-                     'cjb2_options':'-lossless',
-                     'cpaldjvu_options':'',
-                     'csepdjvu_options':'',
-                     'minidjvu_options':'--lossy -pages-per-dict 100',
-                     'title_start':False,
-                     'title_start_number':1,
-                     'title_exclude':{},
-                     'title_uppercase':False,
-                     'preserve_ocr':False,
-                     'win_path':'C:\\Program Files\\DjVuZone\\DjVuLibre\\'}
+        self.opts = {'cores': -1,
+                     'ocr': True,
+                     'ocr_engine': 'tesseract',
+                     'cuneiform_options': '',
+                     'tesseract_options': '',
+                     'bitonal_encoder': 'cjb2',
+                     'color_encoder': 'csepdjvu',
+                     'c44_options': '',
+                     'cjb2_options': '-lossless',
+                     'cpaldjvu_options': '',
+                     'csepdjvu_options': '',
+                     'minidjvu_options': '--lossy -pages-per-dict 100',
+                     'first_main': False,
+                     'main_start_number': 1,
+                     'frontmatter_page': {},
+                     'frontmatter_uppercase': False,
+                     'preserve_ocr': False,
+                     'win_path': 'C:\\Program Files\\DjVuZone\\DjVuLibre\\'}
 
         # Load the global config file first
         if not sys.platform.startswith('win'):
@@ -251,19 +251,19 @@ class Project:
             self.opts['tesseract_options'] = opts.tesseract_options
         if opts.cuneiform_options is not None:
             self.opts['cuneiform_options'] = opts.cuneiform_options
-        if opts.title_start:
-            self.opts['title_start'] = opts.title_start
-        if opts.title_start_number:
-            self.opts['title_start_number'] = opts.title_start_number
+        if opts.first_main:
+            self.opts['first_main'] = opts.first_main
+        if opts.main_start_number:
+            self.opts['main_start_number'] = opts.main_start_number
         if opts.preserve_ocr:
             self.opts['preserve_ocr'] = opts.preserve_ocr
-        for special in opts.title_exclude:
+        for special in opts.frontmatter_page:
             if ':' in special:
                 special = special.split(':')
-                self.opts['title_exclude'][special[0]] = special[1]
+                self.opts['frontmatter_page'][special[0]] = special[1]
             else:
-                self.opts['title_exclude'][special] = None
-        self.opts['title_uppercase'] = opts.title_uppercase
+                self.opts['frontmatter_page'][special] = None
+        self.opts['frontmatter_uppercase'] = opts.frontmatter_uppercase
         self.opts['verbose'] = opts.verbose
         self.opts['quiet'] = opts.quiet
 
@@ -274,7 +274,8 @@ class Project:
         # Update windows PATH so that we can find the executable we need.
         if sys.platform.startswith('win'):
             if self.opts['win_path'] != '':
-                os.environ['PATH'] = '{0};{1}'.format(self.opts['win_path'], os.environ['PATH'])
+                os.environ['PATH'] = '{0};{1}'.format(
+                    self.opts['win_path'], os.environ['PATH'])
 
         if self.opts['verbose']:
             print('Executing with these parameters:')
@@ -304,7 +305,8 @@ class Project:
             q.put(i)
 
         # Create threads to process the pages in queue
-        with tempfile.TemporaryDirectory() as tempdir, djvubind.utils.ChangeDirectory(tempdir):
+        with tempfile.TemporaryDirectory() as tempdir, \
+             djvubind.utils.ChangeDirectory(tempdir):
             origin = os.getcwd()
             os.chdir(tempdir)
             print('  Spawning {0} processing threads.'.format(threadcount))
@@ -313,17 +315,21 @@ class Project:
                 p.daemon = True
                 p.start()
 
-            # Wait for everything to digest.  Note that we don't simply call q.join()
-            # because it blocks, preventing something like ctrl-c from killing the
-            # program.
+            # Wait for everything to digest.  Note that we don't
+            # simply call q.join() because it blocks, preventing
+            # something like ctrl-c from killing the program.
             while not q.empty():
                 try:
                     time.sleep(3)
                     # Report completion percentage.
-                    # N.b., this is not perfect, since queue.qsize() isn't completely reliable in a threaded
-                    # environment, but it will do well enough to give the user and idea of where we are.
-                    position = ( (pagecount - q.qsize() - self.opts['cores']) / pagecount ) * 100
-                    print('  {0:.2f}% completed.       '.format(position), end='\r')
+                    # N.b., this is not perfect, since queue.qsize()
+                    # isn't completely reliable in a threaded
+                    # environment, but it will do well enough to give
+                    # the user and idea of where we are.
+                    position = ( (pagecount - q.qsize() - self.opts['cores']) /
+                                 pagecount ) * 100
+                    print('  {0:.2f}% completed.       '.format(
+                        position), end='\r')
                 except KeyboardInterrupt:
                     print('')
                     sys.exit(1)
@@ -338,27 +344,71 @@ if __name__ == '__main__':
 
     # Command line parsing
     usage = "usage: %prog [options] directory"
-    description = "djvubind is designed to facilitate creating high-quality djvu files, including positional ocr, metadata, and bookmarks."
-    parser = optparse.OptionParser(usage, version=version, description=description)
-    parser.set_defaults(quiet=False, verbose=False,
-                        no_ocr=False, ocr_engine=None, tesseract_options=None, cuneiform_options=None,
-                        preserve_ocr=False,
-                        cover_front='cover_front.jpg', cover_back='cover_back.jpg',
-                        metadata='metadata', bookmarks='bookmarks',
-                        title_start=False, title_start_number=1, title_exclude=[], title_uppercase=False)
-    parser.add_option("--cover-front", dest="cover_front", help="Specifies an alternate front cover image.  By default, '%default' is used if present.")
-    parser.add_option("--cover-back", dest="cover_back", help="Specifies an alternate back cover image.  By default, '%default' is used if present.")
-    parser.add_option("--metadata", dest="metadata", help="Specifies an alternate metadata file.  By default, '%default' is used if present.")
-    parser.add_option("--bookmarks", dest="bookmarks", help="Specifies an alternate bookmarks file.  By default, '%default' is used if present.")
-    parser.add_option("--no-ocr", action="store_true", dest="no_ocr", help="Images will not be processed for text content.")
-    parser.add_option("--ocr-engine", dest="ocr_engine", help="Select which ocr engine to use (cuneiform|tesseract).  By default, '%default' is used.")
-    parser.add_option("--tesseract-options", dest="tesseract_options", help="Additional command line options to pass to tesseract.")
-    parser.add_option("--cuneiform-options", dest="cuneiform_options", help="Additional command line options to pass to cuneiform.")
-    parser.add_option("--title-start", dest="title_start", help="The image filename that is page 1.  Pages before this will titled with roman numerals.")
-    parser.add_option("--title-start-number", dest="title_start_number", help="The number for the first page in arabic numerals.")
-    parser.add_option("--title-exclude", action="append", dest="title_exclude", help="An image that should be excluded from page numbering.  An alternate title can be provided after a colon (e.g. page_01.tif:cover).")
-    parser.add_option("--title-uppercase", action="store_true", dest="title_uppercase", help="Use uppercase roman numerals instead of lowercase.")
-    parser.add_option("--preserve-ocr", action="store_true", dest="preserve_ocr", help="Will not delete ocr files created during processing. Useful for manual corrections to ocr.")
+    description = """djvubind is designed to facilitate creating high-quality \
+djvu files, including positional ocr, metadata, and bookmarks."""
+    parser = optparse.OptionParser(
+        usage, version=version, description=description)
+    parser.set_defaults(
+        quiet=False, verbose=False, no_clobber=False, no_ocr=False,
+        ocr_engine=None, tesseract_options=None, cuneiform_options=None,
+        preserve_ocr=False, cover_front='cover_front.jpg',
+        cover_back='cover_back.jpg', metadata='meta.dat',
+        bookmarks='bm.dat', first_main=False, main_start_number=1,
+        frontmatter_page=[], frontmatter_uppercase=False)
+    # The default for bookmarks is not “book…” just to make it easier to
+    # keep it apart from the output book.djvu
+    parser.add_option(
+        "--cover-front", dest="cover_front",
+        help="""Specifies an alternate front cover image.  By default, \
+'%default' is used if present.""")
+    parser.add_option(
+        "--cover-back", dest="cover_back",
+        help="""Specifies an alternate back cover image.  By default, \
+'%default' is used if present.""")
+    parser.add_option(
+        "-m", "--metadata", dest="metadata",
+        help="""Specifies an alternate metadata file.  By default, '%default' \
+is used if present.""")
+    parser.add_option(
+        "-b", "--bookmarks", dest="bookmarks",
+        help="""Specifies an alternate bookmarks file.  By default, \
+'%default' is used if present.""")
+    parser.add_option(
+        "-n", "--no-clobber", action="store_true", dest="no_clobber",
+        help="Do not overwrite an existing output file.")
+    parser.add_option(
+        "--no-ocr", action="store_true", dest="no_ocr",
+        help="Images will not be processed for text content.")
+    parser.add_option(
+        "--ocr-engine", dest="ocr_engine",
+        help="""Select which ocr engine to use (cuneiform|tesseract). By \
+default, '%default' is used.""")
+    parser.add_option(
+        "--tesseract-options", dest="tesseract_options",
+        help="Additional command line options to pass to tesseract.")
+    parser.add_option(
+        "--cuneiform-options", dest="cuneiform_options",
+        help="Additional command line options to pass to cuneiform.")
+    parser.add_option(
+        "--first-main", dest="first_main",
+        help="""Image filename of first page with an arabic number, the \
+first page of the main matter. Pages before this will get roman numbers.""")
+    parser.add_option(
+        "--main-start-number", dest="main_start_number",
+        help="""The number for the first page in arabic numerals, \
+set if not %default.""")
+    parser.add_option(
+        "--front-matter-page", action="append", dest="frontmatter_page",
+        help="""An image that should be excluded from page numbering. An \
+alternate number can be provided after a colon (e.g. page_01.tif:cover).""")
+    parser.add_option(
+        "--front-matter-uppercase", action="store_true",
+        dest="frontmatter_uppercase",
+        help="Use uppercase roman numerals instead of lowercase.")
+    parser.add_option(
+        "--preserve-ocr", action="store_true", dest="preserve_ocr",
+        help="""Will not delete ocr files created during processing. Useful \
+for manual corrections to ocr.""")
     parser.add_option("-q", "--quiet", action="store_true", dest="quiet")
     parser.add_option("-v", "--verbose", action="store_true", dest="verbose")
     (options, args) = parser.parse_args(sys.argv)
@@ -391,12 +441,9 @@ if __name__ == '__main__':
             print('err: __main__: external dependency ({0}) cannot be found.'.format(dep), file=sys.stderr)
             sys.exit(1)
 
-    # Increment the file name if a previous book.djvu already exists.
-    i = 0
-    while os.path.isfile(proj.out):
-        i = i + 1
-        proj.out = 'book(' + str(i) + ').djvu'
-        proj.out = os.path.abspath(proj.out)
+    if os.path.isfile(proj.out) and options.no_clobber:
+        print('err: Output file {} exists.'.format(proj.out), file=sys.stderr)
+        sys.exit(1)
 
     # Change to working directory if necessary
     if len(args) == 2:
@@ -420,21 +467,26 @@ if __name__ == '__main__':
     for filename in djvubind.utils.list_files():
         ext = filename.split('.')[-1]
         ext = ext.lower()
-        if (ext in ['tif', 'tiff', 'pnm', 'pbm', 'pgm', 'ppm']) and (filename not in [options.cover_front, options.cover_back]):
+        if (ext in ['tif', 'tiff', 'pnm', 'pbm', 'pgm', 'ppm']) and (
+                filename not in [options.cover_front, options.cover_back]):
             proj.add_file(filename, 'page')
-            if proj.opts['title_start'] is not False:
+            if proj.opts['first_main'] is not False:
                 filename = os.path.basename(filename)
-                if proj.opts['title_start'] == filename:
-                    counter = djvubind.utils.counter(start=int(proj.opts['title_start_number']))
-                if filename in proj.opts['title_exclude']:
-                    proj.book.pages[-1].title = proj.opts['title_exclude'][filename]
+                if proj.opts['first_main'] == filename:
+                    counter = djvubind.utils.counter(
+                        start=int(proj.opts['first_main_number']))
+                if filename in proj.opts['frontmatter_page']:
+                    proj.book.pages[-1].title = proj.opts['frontmatter_page'][
+                        filename]
                 else:
                     proj.book.pages[-1].title = next(counter)
-                    if proj.opts['title_uppercase']:
-                        proj.book.pages[-1].title = proj.book.pages[-1].title.upper()
+                    if proj.opts['frontmatter_uppercase']:
+                        proj.book.pages[-1].title = proj.book.pages[
+                            -1].title.upper()
 
     # Check that titles are not being specified without a starting page
-    if (proj.opts['title_start'] is False) and (proj.opts['title_exclude'] != {}):
+    if (proj.opts['first_main'] is False) and (
+            proj.opts['frontmatter_page'] != {}):
         msg = 'err: --title-exclude may only be used with --title-start.'
         msg = djvubind.utils.color(msg, 'red')
         print(msg, file=sys.stderr)
