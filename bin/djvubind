@@ -80,7 +80,7 @@ class ThreadOCR(threading.Thread):
                 page.text = djvubind.ocr.translate(boxing)
             except queue.Empty:
                 self.quit = True
-            except:
+            except SyntaxError as dummy_exception:
                 msg = 'wrn: OCR failure on {0} - This page will have no OCR content.'.format(os.path.split(page.path)[1])
                 msg = djvubind.utils.color(msg, 'red')
                 print(msg, file=sys.stderr)
@@ -349,7 +349,7 @@ djvu files, including positional ocr, metadata, and bookmarks."""
     parser = optparse.OptionParser(
         usage, version=version, description=description)
     parser.set_defaults(
-        quiet=False, verbose=False, no_globber=False, no_ocr=False,
+        quiet=False, verbose=False, no_clobber=False, no_ocr=False,
         ocr_engine=None, tesseract_options=None, cuneiform_options=None,
         preserve_ocr=False, cover_front='cover_front.jpg',
         cover_back='cover_back.jpg', metadata='meta.dat',
@@ -374,7 +374,7 @@ is used if present.""")
         help="""Specifies an alternate bookmarks file.  By default, \
 '%default' is used if present.""")
     parser.add_option(
-        "-n", "--no-globber", action="store_true", dest="no_globber",
+        "-n", "--no-clobber", action="store_true", dest="no_clobber",
         help="Do not overwrite an existing output file.")
     parser.add_option(
         "--no-ocr", action="store_true", dest="no_ocr",
@@ -441,7 +441,7 @@ for manual corrections to ocr.""")
             print('err: __main__: external dependency ({0}) cannot be found.'.format(dep), file=sys.stderr)
             sys.exit(1)
 
-    if os.path.isfile(proj.out) and options.noglobber:
+    if os.path.isfile(proj.out) and options.no_clobber:
         print('err: Output file {} exists.'.format(proj.out), file=sys.stderr)
         sys.exit(1)
 

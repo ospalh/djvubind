@@ -466,14 +466,14 @@ class Tesseract(object):
         Performs OCR analysis on the image and returns a djvuPageBox object.
         """
 
-        if self.version >= StrictVersion("3.0.0."):
+        if self.version >= StrictVersion("3.0.0"):
             basename = os.path.split(filename)[1].split('.')[0]
             # It's important that the basename have a random string appended to
             # it, otherwise a directory with both 01.tif and 01.ppm is going
             # to have some (un)predictable problems.
             basename += "_" + utils.id_generator()
             tesseractpath = utils.get_executable_path('tesseract')
-            
+
             ocr_file = os.path.splitext(filename)[0] + '.hocr'
 
             if (os.path.exists(ocr_file)):

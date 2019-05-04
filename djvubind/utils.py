@@ -173,8 +173,7 @@ def simple_exec(cmd):
     Execute a simple command.  Any output disregarded and exit status is
     returned.
     """
-    #print(cmd)
-    print("executing “{}”".format(cmd))
+    # print("executing “{}”".format(cmd))
     return subprocess.call(shlex.split(cmd))
 
 
@@ -183,7 +182,7 @@ def execute(cmd):
     Execute a command line process.  Includes the option of capturing output,
     and checks for successful execution.
     """
-    print("executing “{}”".format(cmd))
+    # print("executing “{}”".format(cmd))
     return subprocess.check_output(shlex.split(cmd))
     # N.B.: The call may throw a CalledProcessError. Old code was to
     # explicitly check the return code and then do sys.exit. Following
