@@ -470,11 +470,11 @@ for manual corrections to ocr.""")
         if (ext in ['tif', 'tiff', 'pnm', 'pbm', 'pgm', 'ppm']) and (
                 filename not in [options.cover_front, options.cover_back]):
             proj.add_file(filename, 'page')
-            if proj.opts['title_start'] is not False:
+            if proj.opts['first_main'] is not False:
                 filename = os.path.basename(filename)
-                if proj.opts['title_start'] == filename:
+                if proj.opts['first_main'] == filename:
                     counter = djvubind.utils.counter(
-                        start=int(proj.opts['title_start_number']))
+                        start=int(proj.opts['first_main_number']))
                 if filename in proj.opts['frontmatter_page']:
                     proj.book.pages[-1].title = proj.opts['frontmatter_page'][
                         filename]
@@ -485,7 +485,7 @@ for manual corrections to ocr.""")
                             -1].title.upper()
 
     # Check that titles are not being specified without a starting page
-    if (proj.opts['title_start'] is False) and (
+    if (proj.opts['first_main'] is False) and (
             proj.opts['frontmatter_page'] != {}):
         msg = 'err: --title-exclude may only be used with --title-start.'
         msg = djvubind.utils.color(msg, 'red')
