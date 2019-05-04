@@ -25,6 +25,7 @@ import shutil
 import subprocess
 import sys
 
+from distutils.version import StrictVersion
 from html.parser import HTMLParser
 
 from . import utils
@@ -342,7 +343,7 @@ class Cuneiform(object):
 
         # Cuneiform hocr inverts the y-axis compared to what djvu expects.  The total height of the
         # image is needed to invert the values.
-        height = int(utils.execute('identify -format %H "{0}"'.format(filename), capture=True))
+        height = int(utils.execute('identify -format %H "{0}"'.format(filename)))
         for entry in parser.boxing:
             if entry not in ['space', 'newline']:
                 ymin, ymax = entry['ymin'], entry['ymax']
@@ -360,10 +361,11 @@ class Tesseract(object):
     def __init__(self, options):
         if not utils.is_executable('tesseract'):
             raise OSError('Tesseract is either not installed or not in the configured path.')
-        # self.version = 3
-        # Dropped version check. Dropped tesseract < 3 code.
-        # Tesseract 3 came out in 2010, Tesseract 4 in 2018. We’ll
-        # have to see if this still works with tesseract 4.
+
+        t_version_bytes = subprocess.check_output(['tesseract', '--version'])
+        t_version = str(t_version_bytes)
+        t_version = t_version.split('\\n')[0]
+        self.version = StrictVersion(t_version.split()[-1])
         self.options = options
 
         self.preserve_ocr = False
@@ -464,51 +466,127 @@ class Tesseract(object):
         Performs OCR analysis on the image and returns a djvuPageBox object.
         """
 
-        basename = os.path.split(filename)[1].split('.')[0]
-        # It's important that the basename have a random string appended to
-        # it, otherwise a directory with both 01.tif and 01.ppm is going
-        # to have some (un)predictable problems.
-        basename += "_" + utils.id_generator()
-        tesseractpath = utils.get_executable_path('tesseract')
+        if self.version >= StrictVersion("3.0.0."):
+            basename = os.path.split(filename)[1].split('.')[0]
+            # It's important that the basename have a random string appended to
+            # it, otherwise a directory with both 01.tif and 01.ppm is going
+            # to have some (un)predictable problems.
+            basename += "_" + utils.id_generator()
+            tesseractpath = utils.get_executable_path('tesseract')
+            
+            ocr_file = os.path.splitext(filename)[0] + '.hocr'
 
-        ocr_file = os.path.splitext(filename)[0] + '.hocr'
+            if (os.path.exists(ocr_file)):
+                print('wrn: ocr.Tesseract.analyze(): Pre-existing hocr file for {0}. Using existing data.'.format(filename), file=sys.stderr)
+                with open(ocr_file, 'r') as handle:
+                    text = handle.read()
+            else:
+                cmd = '{0} "{1}" "{2}" {3} hocr'.format(tesseractpath, filename, basename, self.options)
+                utils.execute(cmd)
 
-        if (os.path.exists(ocr_file)):
-            print('wrn: ocr.Tesseract.analyze(): Pre-existing hocr file for {0}. Using existing data.'.format(filename), file=sys.stderr)
-            with open(ocr_file, 'r') as handle:
-                text = handle.read()
+                if os.path.exists('{0}.hocr'.format(basename)):
+                    hocrfile = '{0}.hocr'.format(basename)
+                elif os.path.exists('{0}.html'.format(basename)):
+                    hocrfile = '{0}.html'.format(basename)
+                else:
+                    raise FileNotFoundError
+
+                with open(hocrfile, 'r') as handle:
+                    text = handle.read()
+
+                if self.preserve_ocr:
+                    shutil.copy2(hocrfile, ocr_file)
+                else:
+                    os.remove(hocrfile)
+
+            parser = hocrParser()
+            parser.parse(text)
+
+            # hocr inverts the y-axis compared to what djvu expects.  The total height of the
+            # image is needed to invert the values.
+            height = int(utils.execute('identify -format %H "{0}"'.format(filename)))
+            for entry in parser.boxing:
+                if entry not in ['space', 'newline']:
+                    ymin, ymax = entry['ymin'], entry['ymax']
+                    entry['ymin'] = height - ymax
+                    entry['ymax'] = height - ymin
+
+            return parser.boxing
         else:
-            cmd = '{0} "{1}" "{2}" {3} hocr'.format(tesseractpath, filename, basename, self.options)
-            utils.execute(cmd)
+            basename = os.path.split(filename)[1].split('.')[0]
+            # It's important that the basename have a random string appended to
+            # it, otherwise a directory with both 01.tif and 01.ppm is going
+            # to have some (un)predictable problems.
+            basename += "_" + utils.id_generator()
+            tesseractpath = utils.get_executable_path('tesseract')
 
-            if os.path.exists('{0}.hocr'.format(basename)):
-                hocrfile = '{0}.hocr'.format(basename)
-            elif os.path.exists('{0}.html'.format(basename)):
-                hocrfile = '{0}.html'.format(basename)
+            utils.execute('{0} "{1}" "{2}_box" {3} batch makebox'.format(tesseractpath, filename, basename, self.options))
+
+            # tesseract-3.00 changed the .txt extension to .box so check which file was created.
+            if os.path.exists(basename + '_box.txt'):
+                boxfilename = basename + '_box.txt'
             else:
-                raise FileNotFoundError
+                boxfilename = basename + '_box.box'
 
-            with open(hocrfile, 'r') as handle:
+            with open(boxfilename, 'r', encoding='utf8') as handle:
+                    boxfile = handle.read()
+            os.remove(boxfilename)
+
+            utils.execute('{0} "{1}" "{2}_txt" {3} batch'.format(tesseractpath, filename, basename, self.options))
+            with open(basename+'_txt.txt', 'r', encoding='utf8') as handle:
                 text = handle.read()
+            os.remove(basename+'_txt.txt')
 
-            if self.preserve_ocr:
-                shutil.copy2(hocrfile, ocr_file)
-            else:
-                os.remove(hocrfile)
+            data = []
+            for line in boxfile.split('\n'):
+                if (line == ''):
+                    continue
+                line = line.split()
+                if len(line) != 5 and len(line) != 6: # Tesseract 3 box file has 6 columns
+                    print('err: ocr.boxfileParser.parse_box(): The format of the boxfile is not what was expected.', file=sys.stderr)
+                    sys.exit(1)
+                data.append({'char':line[0], 'xmin':int(line[1]), 'ymin':int(line[2]), 'xmax':int(line[3]), 'ymax':int(line[4])})
+            boxfile = data
 
-        parser = hocrParser()
-        parser.parse(text)
+            boxfile = self._correct_boxfile(boxfile, text)
+            textfile = [text[x:x+1] for x in range(len(text))]
+            warning_count = 0
 
-        # hocr inverts the y-axis compared to what djvu expects.  The total height of the
-        # image is needed to invert the values.
-        height = int(utils.execute('identify -format %H "{0}"'.format(filename), capture=True))
-        for entry in parser.boxing:
-            if entry not in ['space', 'newline']:
-                ymin, ymax = entry['ymin'], entry['ymax']
-                entry['ymin'] = height - ymax
-                entry['ymax'] = height - ymin
+            boxing = []
+            for x in range(len(textfile)):
+                char = textfile[x]
+                if (len(boxfile) == 0):
+                    break
 
-        return parser.boxing
+                if (char == '\n'):
+                    if (len(boxing) > 0) and (boxing[-1] != 'newline'):
+                        boxing.append('newline')
+                    continue
+                elif (char == ' '):
+                    if (len(boxing) > 0) and (boxing[-1] != 'space'):
+                        boxing.append('space')
+                    continue
+                else:
+                    if (char != boxfile[0]['char']):
+                        if (len(boxfile) >= 2) and (x+3 <= len(textfile)):
+                            # Maybe this character isn't certain (e/o/c) and we should skip to the next character in both files.
+                            if (textfile[x+1] == boxfile[1]['char']):
+                                boxfile.pop(0)
+                            # Maybe the boxfile inserted an extra character.
+                            elif (textfile[x] == boxfile[1]['char']):
+                                pass
+                            elif (warning_count == 0):
+                                warning_count = warning_count +1
+                                msg = 'wrn: tesseract produced a significant mismatch between textual data and character position data on "{0}".  This may result in partial ocr content for this page.'.format(os.path.split(filename)[1])
+                                msg = utils.color(msg, 'red')
+                                print(msg, file=sys.stderr)
+                        continue
+                    if (char in ['"', '\\']):
+                        boxfile.pop(0)
+                        continue
+                    boxing.append(boxfile.pop(0))
+
+            return boxing
 
 
 def engine(ocr_engine, options=''):

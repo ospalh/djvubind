@@ -55,7 +55,7 @@ class ThreadAnalyze(threading.Thread):
                 page.get_dpi()
             except queue.Empty:
                 self.quit = True
-            except:
+            except SyntaxError as dummy_exception:
                 msg = 'wrn: Analysis failure on {0}.'.format(os.path.split(page.path)[1])
                 msg = djvubind.utils.color(msg, 'red')
                 print(msg, file=sys.stderr)
