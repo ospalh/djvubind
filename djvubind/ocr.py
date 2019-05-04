@@ -25,6 +25,7 @@ import shutil
 import subprocess
 import sys
 
+from distutils.version import StrictVersion
 from html.parser import HTMLParser
 
 from . import utils
@@ -329,14 +330,10 @@ class Tesseract(object):
         if not utils.is_executable('tesseract'):
             raise OSError('Tesseract is either not installed or not in the configured path.')
 
-        sub = subprocess.Popen('tesseract --version', shell=True, stderr=subprocess.PIPE)
-        sub.wait()
-        version = str(sub.stderr.read())
-        version = version.split('\\n')[0]
-        version = version.split()[-1]
-        version = version.split('.')[0]
-
-        self.version = int(version)
+        t_version_bytes = subprocess.check_output(['tesseract', '--version'])
+        t_version = str(t_version_bytes)
+        t_version = t_version.split('\\n')[0]
+        self.version = StrictVersion(t_version.split()[-1])
         self.options = options
 
         self.preserve_ocr = False
@@ -437,14 +434,14 @@ class Tesseract(object):
         Performs OCR analysis on the image and returns a djvuPageBox object.
         """
 
-        if self.version >= 3:
+        if self.version >= StrictVersion("3.0.0."):
             basename = os.path.split(filename)[1].split('.')[0]
             # It's important that the basename have a random string appended to
             # it, otherwise a directory with both 01.tif and 01.ppm is going
             # to have some (un)predictable problems.
             basename += "_" + utils.id_generator()
             tesseractpath = utils.get_executable_path('tesseract')
-            
+
             ocr_file = os.path.splitext(filename)[0] + '.hocr'
 
             if (os.path.exists(ocr_file)):
