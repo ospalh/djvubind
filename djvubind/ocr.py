@@ -311,7 +311,7 @@ class Cuneiform(object):
 
         # Cuneiform hocr inverts the y-axis compared to what djvu expects.  The total height of the
         # image is needed to invert the values.
-        height = int(utils.execute('identify -format %H "{0}"'.format(filename), capture=True))
+        height = int(utils.execute('identify -format %H "{0}"'.format(filename)))
         for entry in parser.boxing:
             if entry not in ['space', 'newline']:
                 ymin, ymax = entry['ymin'], entry['ymax']
@@ -472,7 +472,7 @@ class Tesseract(object):
 
             # hocr inverts the y-axis compared to what djvu expects.  The total height of the
             # image is needed to invert the values.
-            height = int(utils.execute('identify -format %H "{0}"'.format(filename), capture=True))
+            height = int(utils.execute('identify -format %H "{0}"'.format(filename)))
             for entry in parser.boxing:
                 if entry not in ['space', 'newline']:
                     ymin, ymax = entry['ymin'], entry['ymax']

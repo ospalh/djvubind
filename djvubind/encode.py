@@ -330,12 +330,12 @@ class Encoder:
 
             # Insert front/back covers, metadata, and bookmarks
             if book.suppliments['cover_front'] is not None:
-                dpi = int(utils.execute('identify -ping -format %x "{0}"'.format(book.suppliments['cover_front']), capture=True).decode('ascii').split(' ')[0])
+                dpi = int(utils.execute('identify -ping -format %x "{0}"'.format(book.suppliments['cover_front'])).decode('ascii').split(' ')[0])
                 self._c44(book.suppliments['cover_front'], temp, dpi)
                 self.djvu_insert(temp, outfile, 1)
                 utils.execute('djvused -e "select 1; set-page-title cover; save" "{0}"'.format(outfile))
             if book.suppliments['cover_back'] is not None:
-                dpi = int(utils.execute('identify -ping -format %x "{0}"'.format(book.suppliments['cover_back']), capture=True).decode('ascii').split(' ')[0])
+                dpi = int(utils.execute('identify -ping -format %x "{0}"'.format(book.suppliments['cover_back'])).decode('ascii').split(' ')[0])
                 self._c44(book.suppliments['cover_back'], temp, dpi)
                 self.djvu_insert(temp, outfile, -1)
             if book.suppliments['metadata'] is not None:
