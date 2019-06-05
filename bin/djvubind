@@ -104,7 +104,7 @@ class Project:
         #self.ocr = djvubind.ocr.OCR(self.opts)
         if self.opts['ocr']:
             self.ocr = djvubind.ocr.engine(self.opts['ocr_engine'], self.opts['tesseract_options'])
-        self.ocr.preserve_ocr = self.opts['preserve_ocr']
+        # self.ocr.preserve_ocr = self.opts['preserve_ocr']
 
     def add_file(self, filename, type='page'):
         """
@@ -466,7 +466,7 @@ for manual corrections to ocr.""")
         proj.add_file(options.cover_back, 'cover_back')
     if os.path.isfile(options.metadata):
         options.metadata = os.path.join(os.getcwd(), options.metadata)
-        proj.add_file(options.metadata, 'metadata')
+        proj.add_file(options.metadata, 'metadata.dat')
     if os.path.isfile(options.bookmarks):
         options.bookmarks = os.path.join(os.getcwd(), options.bookmarks)
         proj.add_file(options.bookmarks, 'bookmarks')
@@ -480,7 +480,7 @@ for manual corrections to ocr.""")
                 filename = os.path.basename(filename)
                 if proj.opts['first_main'] == filename:
                     counter = djvubind.utils.counter(
-                        start=int(proj.opts['first_main_number']))
+                        start=int(proj.opts['main_start_number']))
                 if filename in proj.opts['frontmatter_page']:
                     proj.book.pages[-1].title = proj.opts['frontmatter_page'][
                         filename]
